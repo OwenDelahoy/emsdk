@@ -11,7 +11,7 @@ else:
   from urllib2 import urlopen, HTTPError
 
 # EMSDK_DEV is a developer mode flag, which, if true, the SDK is downloaded from a 'staging' online source,
-# instead of the public source. New releases are first deployed to the staging source for testing, before 
+# instead of the public source. New releases are first deployed to the staging source for testing, before
 # being published to the public. Don't enable this unless you develop EMSDK itself and need to access the
 # staging source repository instead.
 EMSDK_DEV = bool(os.getenv('EMSDK_DEV')) if os.getenv('EMSDK_DEV') != None else False
@@ -45,6 +45,8 @@ if platform.mac_ver()[0] != '':
   ENVPATH_SEPARATOR = ':'
 
 CPU_CORES = max(multiprocessing.cpu_count()-1, 1) # Don't saturate all cores to not steal the whole system, but be aggressive.
+
+LLVM_TARGET_TO_BUILD = 'host'
 
 CMAKE_BUILD_TYPE_OVERRIDE = None
 
@@ -316,7 +318,7 @@ def download_file(url, dstpath, download_even_if_exists=False, filename_prefix =
   try:
     u = urlopen(url)
     mkdir_p(os.path.dirname(file_name))
-    with open(file_name, 'wb') as f: 
+    with open(file_name, 'wb') as f:
       meta = u.info()
       if hasattr(meta.getheaders, "Content-Length"):
         file_size = int(meta.getheaders("Content-Length")[0])
@@ -564,7 +566,7 @@ def cmake_configure(generator, build_root, src_root, build_type, extra_cmake_arg
     if ret != 0:
       print('CMake invocation failed with exit code ' + ret + '!', file=sys.stderr)
       print('Working directory: ' + build_root, file=sys.stderr)
-      return False  
+      return False
   except OSError as e:
     if e.errno == errno.ENOENT:
       print(str(e), file=sys.stderr)
@@ -574,7 +576,7 @@ def cmake_configure(generator, build_root, src_root, build_type, extra_cmake_arg
       elif LINUX:
         print('Installing this package requires CMake. Get it via your system package manager (e.g. sudo apt-get install cmake), or from http://www.cmake.org/', file=sys.stderr)
       elif OSX:
-        print('Installing this package requires CMake. Get it via a OSX package manager (Homebrew: "brew install cmake", or MacPorts: "sudo port install cmake"), or from http://www.cmake.org/', file=sys.stderr)        
+        print('Installing this package requires CMake. Get it via a OSX package manager (Homebrew: "brew install cmake", or MacPorts: "sudo port install cmake"), or from http://www.cmake.org/', file=sys.stderr)
       return False
     raise
   except Exception as e:
@@ -613,7 +615,8 @@ def build_fastcomp_tool(tool):
   # Configure
   global BUILD_LLVM_TESTS
   tests_arg = 'ON' if BUILD_LLVM_TESTS else 'OFF'
-  args = ['-DLLVM_TARGETS_TO_BUILD=X86;JSBackend', '-DLLVM_INCLUDE_EXAMPLES=OFF', '-DCLANG_INCLUDE_EXAMPLES=OFF', '-DLLVM_INCLUDE_TESTS=' + tests_arg, '-DCLANG_INCLUDE_TESTS=' + tests_arg]
+  global LLVM_TARGET_TO_BUILD
+  args = ['-DLLVM_TARGETS_TO_BUILD=' + LLVM_TARGET_TO_BUILD + ';JSBackend', '-DLLVM_INCLUDE_EXAMPLES=OFF', '-DCLANG_INCLUDE_EXAMPLES=OFF', '-DLLVM_INCLUDE_TESTS=' + tests_arg, '-DCLANG_INCLUDE_TESTS=' + tests_arg]
   success = cmake_configure(cmake_generator, build_root, fastcomp_src_root, build_type, args)
   if not success: return False
 
@@ -733,7 +736,7 @@ def generate_dot_emscripten(active_tools):
   has_node = False
 
   cfg = 'import os\n'
-  
+
   if embedded:
     cfg += "emsdk_path=os.path.dirname(os.environ.get('EM_CONFIG')).replace('\\\\', '/')\n"
 
@@ -763,7 +766,7 @@ JS_ENGINES = [NODE_JS]
     cfg = cfg.replace(emscripten_config_directory, "' + emsdk_path + '")
 
   with open(dot_emscripten_path(), "w") as text_file: text_file.write(cfg)
-  
+
   # Clear old cached emscripten content.
   try:
     remove_tree(os.path.join(emscripten_config_directory, ".emscripten_cache"))
@@ -776,7 +779,7 @@ JS_ENGINES = [NODE_JS]
   print('')
   print(cfg.strip())
   print('')
-  
+
   path_add = get_required_path(active_tools)
   if not WINDOWS:
     emsdk_env = os.path.relpath(sdk_path('emsdk_env.sh'))
@@ -883,7 +886,7 @@ class Tool:
       return self.expand_vars(self.activated_env)
     else:
       return ''
-  
+
   def compatible_with_this_os(self):
     if hasattr(self, 'os'):
       if self.os == 'all':
@@ -932,7 +935,7 @@ class Tool:
           if not os.path.exists(path): return False
         return True
       content_exists = os.path.exists(self.installation_path()) and each_path_exists(activated_path) and (os.path.isfile(self.installation_path()) or num_files_in_directory(self.installation_path()) > 0)
-      
+
       if self.id == 'vs-tool': # vs-tool is a special tool since all versions must be installed to the same dir, so dir name will not differentiate the version.
         return content_exists and get_installed_vstool_version(self.installation_path()) == self.version
       elif hasattr(self, 'custom_is_installed_script') and self.custom_is_installed_script == 'is_optimizer_installed':
@@ -946,9 +949,9 @@ class Tool:
     if not self.is_installed():
       return False
 
-    if self.id == 'vs-tool': 
+    if self.id == 'vs-tool':
       return True # vs-tool is a special tool since all versions must be installed to the same dir, which means that if this tool is installed, it is also active.
-      
+
     # All dependencies of this tool must be active as well.
     deps = self.dependencies()
     for tool in deps:
@@ -996,7 +999,7 @@ class Tool:
         win_delete_environment_variable(key, False) # If there is an env var for the LOCAL USER with same name, it will hide the system var, so must remove that first.
 
       win_set_environment_variable(key, value, permanently_activate)
-    
+
   # If this tool can be installed on this system, this function returns True.
   # Otherwise, this function returns a string that describes the reason why this tool is not available.
   def can_be_installed(self):
@@ -1102,7 +1105,7 @@ class Tool:
     if not hasattr(self, 'uses'):
       return []
     deps = []
-    
+
     for tool_name in self.uses:
       tool = find_tool(tool_name)
       if tool:
@@ -1221,7 +1224,7 @@ def fetch_emscripten_tags():
   all_tags = sorted(all_tags, cmp=version_compare)
   open(sdk_path('emscripten-tags.txt'), 'w').write('\n'.join(all_tags))
   if len(all_tags) > 0:
-    print('Done. ' + str(len(all_tags)) + ' tagged releases available, latest is ' + all_tags[-1] + '.') 
+    print('Done. ' + str(len(all_tags)) + ' tagged releases available, latest is ' + all_tags[-1] + '.')
   else:
     print('Done. No tagged releases available.')
 
@@ -1500,6 +1503,15 @@ def main():
                                   'Release' for LLVM master branch, and
                                   'RelWithDebInfo' for LLVM incoming branch.
 
+              --target=<backend>: Chooses the backend for which emscripten's
+                                  fastcomp will be able to target in addition
+                                  to the 'JSBackend'. Possible values include
+                                  'AArch64', 'ARM', 'CppBackend', 'Hexagon',
+                                  'Mips', 'MSP430', 'NVPTX', 'PowerPC', 'R600',
+                                  'Sparc', 'SystemZ', 'X86', 'XCore' or 'host'
+                                  Defaults to 'host', for which LLVM's build
+                                  system will determin the host platform.
+
                        --shallow: When installing tools from one of the git
                                   development branches 'master' or 'incoming',
                                   this parameter can be passed to perform a
@@ -1520,7 +1532,7 @@ def main():
 
     if WINDOWS:
       print('''
-   emsdk activate [--global] [--embedded] [--build=type] <tool/sdk> 
+   emsdk activate [--global] [--embedded] [--build=type] <tool/sdk>
 
                                 - Activates the given tool or SDK in the
                                   environment of the current shell. If the
@@ -1561,6 +1573,22 @@ def main():
 
   # Process global args
   for i in range(2, len(sys.argv)):
+    if sys.argv[i].startswith('--target='):
+      target = re.match(r'^--target=(.+)$', sys.argv[i])
+      if target:
+        global LLVM_TARGET_TO_BUILD
+        target = target.group(1)
+        targets = ['AArch64', 'ARM', 'CppBackend', 'Hexagon', 'Mips', 'MSP430', 'NVPTX', 'PowerPC', 'R600', 'Sparc', 'SystemZ', 'X86', 'XCore', 'host']
+        try:
+          target_index = [x.lower() for x in targets].index(target.lower())
+          LLVM_TARGET_TO_BUILD = targets[target_index]
+          sys.argv[i] = ''
+        except:
+          print('Unknown LLVM target "' + target + '" specified! Please specify one of ' + str(targets), file=sys.stderr)
+          return 1
+      else:
+        print("Invalid command line parameter " + sys.argv[i] + ' specified!', file=sys.stderr)
+        return 1
     if sys.argv[i].startswith('--build='):
       build_type = re.match(r'^--build=(.+)$', sys.argv[i])
       if build_type:
