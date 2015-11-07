@@ -46,7 +46,7 @@ if platform.mac_ver()[0] != '':
 
 CPU_CORES = max(multiprocessing.cpu_count()-1, 1) # Don't saturate all cores to not steal the whole system, but be aggressive.
 
-LLVM_TARGET_TO_BUILD = 'host'
+LLVM_TARGET = 'host'
 
 CMAKE_BUILD_TYPE_OVERRIDE = None
 
@@ -615,8 +615,8 @@ def build_fastcomp_tool(tool):
   # Configure
   global BUILD_LLVM_TESTS
   tests_arg = 'ON' if BUILD_LLVM_TESTS else 'OFF'
-  global LLVM_TARGET_TO_BUILD
-  args = ['-DLLVM_TARGETS_TO_BUILD=' + LLVM_TARGET_TO_BUILD + ';JSBackend', '-DLLVM_INCLUDE_EXAMPLES=OFF', '-DCLANG_INCLUDE_EXAMPLES=OFF', '-DLLVM_INCLUDE_TESTS=' + tests_arg, '-DCLANG_INCLUDE_TESTS=' + tests_arg]
+  global LLVM_TARGET
+  args = ['-DLLVM_TARGET_ARCH=' + LLVM_TARGET, '-DLLVM_TARGETS_TO_BUILD=' + LLVM_TARGET + ';JSBackend', '-DLLVM_INCLUDE_EXAMPLES=OFF', '-DCLANG_INCLUDE_EXAMPLES=OFF', '-DLLVM_INCLUDE_TESTS=' + tests_arg, '-DCLANG_INCLUDE_TESTS=' + tests_arg]
   success = cmake_configure(cmake_generator, build_root, fastcomp_src_root, build_type, args)
   if not success: return False
 
@@ -1503,14 +1503,14 @@ def main():
                                   'Release' for LLVM master branch, and
                                   'RelWithDebInfo' for LLVM incoming branch.
 
-              --target=<backend>: Chooses the backend for which emscripten's
-                                  fastcomp will be able to target in addition
-                                  to the 'JSBackend'. Possible values include
+                 --target=<arch>: Chooses the backend and target architecture
+                                  for LLVM's binaries. Possible values include
                                   'AArch64', 'ARM', 'CppBackend', 'Hexagon',
                                   'Mips', 'MSP430', 'NVPTX', 'PowerPC', 'R600',
                                   'Sparc', 'SystemZ', 'X86', 'XCore' or 'host'
                                   Defaults to 'host', for which LLVM's build
-                                  system will determin the host platform.
+                                  system will determine the host platform.
+                                  
 
                        --shallow: When installing tools from one of the git
                                   development branches 'master' or 'incoming',
@@ -1576,12 +1576,12 @@ def main():
     if sys.argv[i].startswith('--target='):
       target = re.match(r'^--target=(.+)$', sys.argv[i])
       if target:
-        global LLVM_TARGET_TO_BUILD
+        global LLVM_TARGET
         target = target.group(1)
         targets = ['AArch64', 'ARM', 'CppBackend', 'Hexagon', 'Mips', 'MSP430', 'NVPTX', 'PowerPC', 'R600', 'Sparc', 'SystemZ', 'X86', 'XCore', 'host']
         try:
           target_index = [x.lower() for x in targets].index(target.lower())
-          LLVM_TARGET_TO_BUILD = targets[target_index]
+          LLVM_TARGET = targets[target_index]
           sys.argv[i] = ''
         except:
           print('Unknown LLVM target "' + target + '" specified! Please specify one of ' + str(targets), file=sys.stderr)
